@@ -1,0 +1,97 @@
+import requests
+import json
+from datetime import datetime
+import time
+
+# Define your API key and the cities you want to monitor
+API_KEY = "dc86793be1208c2bd84ce384cc4c5b7c"  # Replace with your actual API key
+cities = ['Delhi', 'Mumbai', 'Chennai', 'Bangalore', 'Kolkata', 'Hyderabad']
+
+# List to store daily weather data
+daily_data = []
+
+# Define a temperature threshold for alerts
+threshold_temp = 35  # Example threshold: 35°C
+
+# Function to fetch weather data from OpenWeatherMap API
+def fetch_weather_data(city):
+    base_url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={API_KEY}&units=metric"
+    response = requests.get(base_url)
+    
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"Error fetching data for {city}. HTTP Status code: {response.status_code}")
+        return None
+
+# Function to process fetched weather data
+def process_weather_data(data):
+    if data:
+        city = data['name']
+        temp = data['main']['temp']
+        feels_like = data['main']['feels_like']
+        main_weather = data['weather'][0]['main']
+        timestamp = datetime.fromtimestamp(data['dt'])
+        
+        return {
+            "city": city,
+            "temperature": temp,
+            "feels_like": feels_like,
+            "main": main_weather,
+            "timestamp": timestamp
+        }
+    return None
+
+# Function to store the processed data
+def store_weather_data(processed_data):
+    global daily_data
+    daily_data.append(processed_data)
+
+# Function to calculate and display daily summary
+def calculate_daily_summary():
+    if daily_data:
+        avg_temp = sum([d['temperature'] for d in daily_data]) / len(daily_data)
+        max_temp = max([d['temperature'] for d in daily_data])
+        min_temp = min([d['temperature'] for d in daily_data])
+        
+        main_weather_conditions = [d['main'] for d in daily_data]
+        dominant_weather = max(set(main_weather_conditions), key=main_weather_conditions.count)
+        
+        print(f"Daily Summary:\nAvg Temp: {avg_temp:.2f}°C\nMax Temp: {max_temp}°C\nMin Temp: {min_temp}°C\nDominant Weather: {dominant_weather}")
+
+# Function to check and trigger alerts
+def check_alerts(processed_data):
+    if processed_data and processed_data['temperature'] > threshold_temp:
+        print(f"ALERT! {processed_data['city']} temperature exceeded {threshold_temp}°C")
+
+# Function to reset daily data (e.g., at the start of a new day)
+def reset_daily_data():
+    global daily_data
+    daily_data = []  # Clear the daily data
+
+# Main function to monitor weather
+def run_weather_monitor():
+    last_day = datetime.now().day  # Track the day to reset daily data
+    
+    while True:
+        current_day = datetime.now().day
+        
+        # Check if the day has changed to reset daily data
+        if current_day != last_day:
+            calculate_daily_summary()
+            reset_daily_data()
+            last_day = current_day
+        
+        # Fetch and process weather data for each city
+        for city in cities:
+            weather_data = fetch_weather_data(city)
+            processed_data = process_weather_data(weather_data)
+            if processed_data:
+                store_weather_data(processed_data)
+                check_alerts(processed_data)
+        
+        # Wait for 5 minutes before the next round of API calls
+        time.sleep(300)
+
+# Run the weather monitoring system
+run_weather_monitor()
